@@ -42,3 +42,9 @@ class ReportImage(Base):
         "Report",
         back_populates="images",
     )
+
+    analyses = relationship(
+        "Analysis",
+        back_populates="report_image",
+        cascade="all, delete-orphan",
+    )
