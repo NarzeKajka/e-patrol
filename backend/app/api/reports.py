@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status, HTTPException
+from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -9,6 +9,9 @@ from app.database.database import get_db
 from app.models.report import Report
 from app.models.user import User
 from app.schemas.report import ReportCreate, ReportResponse
+from app.models.report_image import ReportImage
+from app.schemas.report_image import ReportImageResponse
+from app.services.storage import report_image_storage
 
 
 router = APIRouter(
@@ -102,3 +105,63 @@ def get_report(
         )
 
     return report
+
+
+@router.post(
+    "/{report_id}/images",
+    response_model=ReportImageResponse,
+    status_code=status.HTTP_201_CREATED,
+)
+def upload_report_image(
+    report_id: int,
+    file: Annotated[
+        UploadFile,
+        File(),
+    ],
+    current_user: Annotated[
+        User,
+        Depends(get_current_user),
+    ],
+    db: Annotated[
+        Session,
+        Depends(get_db),
+    ],
+):
+    report = db.scalar(
+        select(Report).where(
+            Report.id == report_id,
+            Report.user_id == current_user.id,
+        )
+    )
+
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found",
+        )
+
+    allowed_content_types = {
+        "image/jpeg",
+        "image/png",
+    }
+
+    if file.content_type not in allowed_content_types:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Only JPEG and PNG images are allowed",
+        )
+
+    storage_key = report_image_storage.save(file)
+
+    report_image = ReportImage(
+        report_id=report.id,
+        storage_key=storage_key,
+        original_filename=file.filename,
+        content_type=file.content_type,
+    )
+
+    db.add(report_image)
+    db.commit()
+    db.refresh(report_image)
+
+    return report_image

@@ -60,3 +60,9 @@ class Report(Base):
         "User",
         back_populates="reports",
     )
+
+    images = relationship(
+    "ReportImage",
+    back_populates="report",
+    cascade="all, delete-orphan",
+)
