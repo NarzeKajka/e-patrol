@@ -12,6 +12,7 @@ from app.schemas.report import ReportCreate, ReportResponse
 from app.models.report_image import ReportImage
 from app.schemas.report_image import ReportImageResponse
 from app.services.storage import report_image_storage
+from app.services.image_validator import validate_image
 
 
 router = APIRouter(
@@ -140,16 +141,7 @@ def upload_report_image(
             detail="Report not found",
         )
 
-    allowed_content_types = {
-        "image/jpeg",
-        "image/png",
-    }
-
-    if file.content_type not in allowed_content_types:
-        raise HTTPException(
-            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
-            detail="Only JPEG and PNG images are allowed",
-        )
+    validate_image(file)
 
     storage_key = report_image_storage.save(file)
 
