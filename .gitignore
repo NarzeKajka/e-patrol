@@ -26,3 +26,6 @@ frontend/.flutter-plugins-dependencies
 
 # Uploaded files
 uploads/
+
+# ML datasets
+data/
