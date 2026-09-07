@@ -23,6 +23,7 @@ frontend/.flutter-plugins-dependencies
 
 # Local data
 *.db
+*.zip
 
 # Uploaded files
 uploads/
