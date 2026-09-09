@@ -1,6 +1,13 @@
 from datetime import datetime
+from enum import Enum
 
 from pydantic import BaseModel, Field
+
+
+class ReportStatus(str, Enum):
+    SUBMITTED = "submitted"
+    IN_PROGRESS = "in_progress"
+    RESOLVED = "resolved"
 
 
 class ReportCreate(BaseModel):
@@ -25,7 +32,7 @@ class ReportResponse(BaseModel):
     description: str | None
     latitude: float
     longitude: float
-    status: str
+    status: ReportStatus
     created_at: datetime
     updated_at: datetime
 

@@ -2,6 +2,15 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>e-Patrol potrzebuje dostępu do lokalizacji, aby wskazać miejsce zgłaszanego problemu.</string>
+
+	<key>NSCameraUsageDescription</key>
+	<string>e-Patrol potrzebuje dostępu do aparatu, aby zrobić zdjęcie zgłaszanego problemu.</string>
+
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>e-Patrol potrzebuje dostępu do galerii, aby wybrać zdjęcie zgłaszanego problemu.</string>
+
 	<key>CADisableMinimumFrameDurationOnPhone</key>
 	<true/>
 	<key>CFBundleDevelopmentRegion</key>

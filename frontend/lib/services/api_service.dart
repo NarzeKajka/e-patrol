@@ -47,4 +47,36 @@ class ApiService {
 
     throw Exception(data['detail'] ?? 'Nie udało się utworzyć konta');
   }
+
+  static Future<Map<String, dynamic>> getMe({required String token}) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/users/me'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data;
+    }
+
+    throw Exception(
+      data['detail'] ?? 'Nie udało się pobrać danych użytkownika',
+    );
+  }
+
+  static Future<List<dynamic>> getMyReports({required String token}) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/reports/my'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data as List<dynamic>;
+    }
+
+    throw Exception(data['detail'] ?? 'Nie udało się pobrać zgłoszeń');
+  }
 }

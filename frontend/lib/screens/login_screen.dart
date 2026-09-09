@@ -3,6 +3,9 @@ import 'package:flutter/material.dart';
 import '../services/api_service.dart';
 import '../theme/app_theme.dart';
 import '../widgets/app_logo.dart';
+import '../services/auth_storage.dart';
+
+import 'home_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -35,15 +38,22 @@ class _LoginScreenState extends State<LoginScreen> {
         password: passwordController.text,
       );
 
-      debugPrint('Login successful');
+      await AuthStorage.saveToken(token);
+
+      final user = await ApiService.getMe(token: token);
+
+      debugPrint('Logged in as: ${user['full_name']}');
 
       if (!mounted) return;
 
-      ScaffoldMessenger.of(
+      Navigator.pushReplacement(
         context,
-      ).showSnackBar(const SnackBar(content: Text('Zalogowano pomyślnie.')));
-    } catch (error) {
+        MaterialPageRoute(builder: (context) => HomeScreen(user: user)),
+      );
+    } catch (e) {
       if (!mounted) return;
+
+      await AuthStorage.deleteToken();
 
       showDialog(
         context: context,

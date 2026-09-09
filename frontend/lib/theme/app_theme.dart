@@ -12,6 +12,18 @@ class AppTheme {
 
       scaffoldBackgroundColor: background,
 
+      appBarTheme: const AppBarTheme(
+        backgroundColor: background,
+        foregroundColor: darkBlue,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        titleTextStyle: TextStyle(
+          color: darkBlue,
+          fontSize: 20,
+          fontWeight: FontWeight.w700,
+        ),
+      ),
+
       colorScheme: ColorScheme.fromSeed(
         seedColor: primary,
         primary: primary,

@@ -4,6 +4,7 @@ from sqlalchemy import DateTime, Float, ForeignKey, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database.database import Base
+from app.schemas.report import ReportStatus
 
 
 class Report(Base):
@@ -39,7 +40,7 @@ class Report(Base):
 
     status: Mapped[str] = mapped_column(
         String(50),
-        default="submitted",
+        default=ReportStatus.SUBMITTED.value,
         nullable=False,
     )
 
