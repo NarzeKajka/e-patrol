@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 
-import '../services/api_service.dart';
-import '../services/auth_storage.dart';
-import '../theme/app_theme.dart';
-import '../widgets/app_logo.dart';
+import '../../services/api_service.dart';
+import '../../services/auth_storage.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/app_logo.dart';
+import '../reports/report_details_screen.dart';
 
 class HomeScreen extends StatefulWidget {
   final Map<String, dynamic> user;
+  final VoidCallback onOpenReports;
 
-  const HomeScreen({super.key, required this.user});
+  const HomeScreen({
+    super.key,
+    required this.user,
+    required this.onOpenReports,
+  });
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -122,14 +128,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     ),
                   ),
                   const Spacer(),
-                  IconButton(
-                    onPressed: () {},
-                    icon: const Icon(
-                      Icons.notifications_none_rounded,
-                      size: 28,
-                      color: AppTheme.darkBlue,
-                    ),
-                  ),
                 ],
               ),
 
@@ -247,7 +245,7 @@ class _HomeScreenState extends State<HomeScreen> {
                   ),
                   const Spacer(),
                   TextButton(
-                    onPressed: () {},
+                    onPressed: widget.onOpenReports,
                     child: const Text(
                       'Zobacz wszystkie',
                       style: TextStyle(fontWeight: FontWeight.w600),
@@ -267,35 +265,26 @@ class _HomeScreenState extends State<HomeScreen> {
                 Column(
                   children: reports
                       .take(3)
-                      .map((report) => _RecentReportCard(report: report))
+                      .map(
+                        (report) => _RecentReportCard(
+                          report: report,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (_) => ReportDetailsScreen(
+                                  reportId: report['id'] as int,
+                                ),
+                              ),
+                            );
+                          },
+                        ),
+                      )
                       .toList(),
                 ),
             ],
           ),
         ),
-      ),
-
-      // DOLNA NAWIGACJA
-      bottomNavigationBar: NavigationBar(
-        selectedIndex: 0,
-        onDestinationSelected: (index) {},
-        destinations: const [
-          NavigationDestination(
-            icon: Icon(Icons.home_outlined),
-            selectedIcon: Icon(Icons.home),
-            label: 'Strona główna',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.assignment_outlined),
-            selectedIcon: Icon(Icons.assignment),
-            label: 'Zgłoszenia',
-          ),
-          NavigationDestination(
-            icon: Icon(Icons.person_outline),
-            selectedIcon: Icon(Icons.person),
-            label: 'Profil',
-          ),
-        ],
       ),
     );
   }
@@ -437,8 +426,9 @@ class _EmptyReports extends StatelessWidget {
 
 class _RecentReportCard extends StatelessWidget {
   final dynamic report;
+  final VoidCallback onTap;
 
-  const _RecentReportCard({required this.report});
+  const _RecentReportCard({required this.report, required this.onTap});
 
   String get categoryLabel {
     switch (report['category']) {
@@ -488,54 +478,63 @@ class _RecentReportCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: InkWell(
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: const Color(0xFFE7ECF2)),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEDF6FF),
-              borderRadius: BorderRadius.circular(14),
-            ),
-            child: Icon(categoryIcon, color: AppTheme.primary, size: 25),
+        onTap: onTap,
+        child: Ink(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(color: const Color(0xFFE7ECF2)),
           ),
-
-          const SizedBox(width: 14),
-
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  categoryLabel,
-                  style: const TextStyle(
-                    fontSize: 15,
-                    fontWeight: FontWeight.w700,
-                    color: AppTheme.darkBlue,
-                  ),
+          child: Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: const Color(0xFFEDF6FF),
+                  borderRadius: BorderRadius.circular(14),
                 ),
+                child: Icon(categoryIcon, color: AppTheme.primary, size: 25),
+              ),
 
-                const SizedBox(height: 5),
+              const SizedBox(width: 14),
 
-                Text(
-                  statusLabel,
-                  style: TextStyle(fontSize: 13, color: Colors.grey.shade600),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      categoryLabel,
+                      style: const TextStyle(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w700,
+                        color: AppTheme.darkBlue,
+                      ),
+                    ),
+
+                    const SizedBox(height: 5),
+
+                    Text(
+                      statusLabel,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Colors.grey.shade600,
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
+              ),
+
+              Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
+            ],
           ),
-
-          Icon(Icons.chevron_right_rounded, color: Colors.grey.shade400),
-        ],
+        ),
       ),
     );
   }

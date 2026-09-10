@@ -3,10 +3,11 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../theme/app_theme.dart';
-import '../../utils/report_category.dart';
-import '../../widgets/report_bottom_bar.dart';
-import '../../widgets/report_progress.dart';
+import '../../../models/analysis_result.dart';
+import '../../../theme/app_theme.dart';
+import '../../../utils/report_category.dart';
+import '../../../widgets/report_bottom_bar.dart';
+import '../../../widgets/report_progress.dart';
 import 'details_screen.dart';
 
 class AnalysisScreen extends StatefulWidget {
@@ -19,12 +20,7 @@ class AnalysisScreen extends StatefulWidget {
 }
 
 class _AnalysisScreenState extends State<AnalysisScreen> {
-  bool isAnalyzing = true;
-
-  // Tymczasowy wynik do testowania UI.
-  // Później wartości przyjdą z backendu.
-  String detectedCategory = 'road_damage';
-  double confidence = 0.87;
+  AnalysisResult? analysis;
 
   bool categoryConfirmed = true;
   String? selectedCategory;
@@ -36,38 +32,66 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
 
   Future<void> _runAnalysis() async {
-    // TODO: później wywołamy tutaj backend z modelem AI.
+    // TODO:
+    // Później tutaj wywołamy prawdziwy endpoint AI.
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
 
-    setState(() {
-      isAnalyzing = false;
-      selectedCategory = detectedCategory;
-    });
-  }
-
-  void _goNext() {
-    if (selectedCategory == null) return;
-
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) =>
-            DetailsScreen(image: widget.image, category: selectedCategory!),
-      ),
+    // Tymczasowy wynik do testowania całego przepływu.
+    const mockAnalysis = AnalysisResult(
+      modelName: 'ssd_mobilenet_v2',
+      modelVersion: 'mock',
+      inferenceTimeMs: 42.0,
+      detections: [
+        DetectionResult(
+          className: 'road_damage',
+          confidence: 0.87,
+          x1: 0.1,
+          y1: 0.2,
+          x2: 0.8,
+          y2: 0.9,
+        ),
+      ],
     );
+
+    setState(() {
+      analysis = mockAnalysis;
+      selectedCategory = mockAnalysis.detectedCategory;
+    });
   }
 
   void _changeConfirmation(bool value) {
     setState(() {
       categoryConfirmed = value;
-      selectedCategory = value ? detectedCategory : null;
+
+      if (value) {
+        selectedCategory = analysis?.detectedCategory;
+      } else {
+        selectedCategory = null;
+      }
     });
+  }
+
+  void _goNext() {
+    if (analysis == null || selectedCategory == null) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => DetailsScreen(
+          image: widget.image,
+          category: selectedCategory!,
+          analysis: analysis!,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final currentAnalysis = analysis;
+
     return Scaffold(
       appBar: AppBar(
         automaticallyImplyLeading: false,
@@ -88,12 +112,11 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
                     Expanded(
                       child: SingleChildScrollView(
-                        child: isAnalyzing
+                        child: currentAnalysis == null
                             ? _AnalysisLoading(image: widget.image)
-                            : _AnalysisResult(
+                            : _AnalysisResultView(
                                 image: widget.image,
-                                detectedCategory: detectedCategory,
-                                confidence: confidence,
+                                analysis: currentAnalysis,
                                 categoryConfirmed: categoryConfirmed,
                                 selectedCategory: selectedCategory,
                                 onConfirmationChanged: _changeConfirmation,
@@ -110,7 +133,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               ),
             ),
 
-            if (!isAnalyzing)
+            if (currentAnalysis != null)
               ReportBottomBar(
                 leftLabel: 'Wstecz',
                 rightLabel: 'Dalej',
@@ -137,16 +160,6 @@ class _AnalysisLoading extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        ClipRRect(
-          borderRadius: BorderRadius.circular(18),
-          child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Image.file(File(image.path), fit: BoxFit.cover),
-          ),
-        ),
-
-        const SizedBox(height: 34),
-
         Stack(
           alignment: Alignment.center,
           children: [
@@ -246,20 +259,18 @@ class _AnalysisStep extends StatelessWidget {
   }
 }
 
-class _AnalysisResult extends StatelessWidget {
+class _AnalysisResultView extends StatelessWidget {
   final XFile image;
-  final String detectedCategory;
-  final double confidence;
+  final AnalysisResult analysis;
   final bool categoryConfirmed;
   final String? selectedCategory;
 
   final ValueChanged<bool> onConfirmationChanged;
   final ValueChanged<String?> onCategoryChanged;
 
-  const _AnalysisResult({
+  const _AnalysisResultView({
     required this.image,
-    required this.detectedCategory,
-    required this.confidence,
+    required this.analysis,
     required this.categoryConfirmed,
     required this.selectedCategory,
     required this.onConfirmationChanged,
@@ -268,6 +279,9 @@ class _AnalysisResult extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final detectedCategory = analysis.detectedCategory;
+    final confidence = analysis.confidence;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -296,70 +310,72 @@ class _AnalysisResult extends StatelessWidget {
 
         const SizedBox(height: 10),
 
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: const Color(0xFFFFF7E8),
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: const BoxDecoration(
-                  color: Color(0xFFFFE3A8),
-                  shape: BoxShape.circle,
+        if (detectedCategory != null && confidence != null) ...[
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: const Color(0xFFFFF7E8),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 48,
+                  height: 48,
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFFFE3A8),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    ReportCategory.icon(detectedCategory),
+                    color: AppTheme.darkBlue,
+                  ),
                 ),
-                child: Icon(
-                  ReportCategory.icon(detectedCategory),
-                  color: AppTheme.darkBlue,
-                ),
-              ),
 
-              const SizedBox(width: 14),
+                const SizedBox(width: 14),
 
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      ReportCategory.label(detectedCategory),
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w800,
-                        color: AppTheme.darkBlue,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ReportCategory.label(detectedCategory),
+                        style: const TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w800,
+                          color: AppTheme.darkBlue,
+                        ),
                       ),
-                    ),
 
-                    const SizedBox(height: 4),
+                      const SizedBox(height: 4),
 
-                    Text(
-                      'Pewność: ${(confidence * 100).round()}%',
-                      style: const TextStyle(
-                        fontSize: 13,
-                        color: Color(0xFF68788D),
+                      Text(
+                        'Pewność: ${(confidence * 100).round()}%',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Color(0xFF68788D),
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-        ),
 
-        const SizedBox(height: 10),
+          const SizedBox(height: 10),
 
-        ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: LinearProgressIndicator(
-            value: confidence,
-            minHeight: 7,
-            backgroundColor: const Color(0xFFE5EAF0),
-            color: const Color(0xFF1DB66B),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(10),
+            child: LinearProgressIndicator(
+              value: confidence,
+              minHeight: 7,
+              backgroundColor: const Color(0xFFE5EAF0),
+              color: const Color(0xFF1DB66B),
+            ),
           ),
-        ),
+        ],
 
         const SizedBox(height: 28),
 

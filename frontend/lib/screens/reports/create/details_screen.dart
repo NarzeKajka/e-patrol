@@ -3,20 +3,27 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../services/location_service.dart';
-import '../../theme/app_theme.dart';
-import '../../utils/report_category.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/report_bottom_bar.dart';
-import '../../widgets/report_progress.dart';
+import '../../../services/location_service.dart';
+import '../../../models/analysis_result.dart';
+import '../../../theme/app_theme.dart';
+import '../../../utils/report_category.dart';
+import '../../../widgets/app_button.dart';
+import '../../../widgets/report_bottom_bar.dart';
+import '../../../widgets/report_progress.dart';
 import 'location_picker_screen.dart';
 import 'summary_screen.dart';
 
 class DetailsScreen extends StatefulWidget {
   final XFile image;
   final String category;
+  final AnalysisResult analysis;
 
-  const DetailsScreen({super.key, required this.image, required this.category});
+  const DetailsScreen({
+    super.key,
+    required this.image,
+    required this.category,
+    required this.analysis,
+  });
 
   @override
   State<DetailsScreen> createState() => _DetailsScreenState();
@@ -88,6 +95,7 @@ class _DetailsScreenState extends State<DetailsScreen> {
         builder: (_) => SummaryScreen(
           image: widget.image,
           category: widget.category,
+          analysis: widget.analysis,
           latitude: latitude!,
           longitude: longitude!,
           address: locationLabel ?? 'Wybrana lokalizacja',

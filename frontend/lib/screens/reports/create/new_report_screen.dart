@@ -3,10 +3,10 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../theme/app_theme.dart';
-import '../../widgets/app_button.dart';
-import '../../widgets/report_bottom_bar.dart';
-import '../../widgets/report_progress.dart';
+import '../../../theme/app_theme.dart';
+import '../../../widgets/app_button.dart';
+import '../../../widgets/report_bottom_bar.dart';
+import '../../../widgets/report_progress.dart';
 import 'analysis_screen.dart';
 
 class NewReportScreen extends StatefulWidget {

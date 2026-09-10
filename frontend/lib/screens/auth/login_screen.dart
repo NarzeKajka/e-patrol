@@ -1,33 +1,30 @@
 import 'package:flutter/material.dart';
 
-import '../theme/app_theme.dart';
-import '../services/api_service.dart';
+import '../../services/api_service.dart';
+import '../../theme/app_theme.dart';
+import '../../widgets/app_logo.dart';
+import '../../services/auth_storage.dart';
 
-class RegisterScreen extends StatefulWidget {
-  const RegisterScreen({super.key});
+import '../main_screen.dart';
+
+class LoginScreen extends StatefulWidget {
+  const LoginScreen({super.key});
 
   @override
-  State<RegisterScreen> createState() => _RegisterScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
-class _RegisterScreenState extends State<RegisterScreen> {
+class _LoginScreenState extends State<LoginScreen> {
   final formKey = GlobalKey<FormState>();
 
-  final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
-  final repeatPasswordController = TextEditingController();
 
   bool hidePassword = true;
-  bool acceptTerms = false;
   bool isLoading = false;
 
-  Future<void> register() async {
+  Future<void> login() async {
     if (!formKey.currentState!.validate()) {
-      return;
-    }
-
-    if (!acceptTerms) {
       return;
     }
 
@@ -36,44 +33,27 @@ class _RegisterScreenState extends State<RegisterScreen> {
     });
 
     try {
-      await ApiService.register(
-        full_name: nameController.text.trim(),
+      final token = await ApiService.login(
         email: emailController.text.trim(),
         password: passwordController.text,
       );
 
+      await AuthStorage.saveToken(token);
+
+      final user = await ApiService.getMe(token: token);
+
+      debugPrint('Logged in as: ${user['full_name']}');
+
       if (!mounted) return;
 
-      showDialog(
-        context: context,
-        builder: (context) {
-          return AlertDialog(
-            icon: const Icon(
-              Icons.check_circle_outline,
-              size: 40,
-              color: Colors.green,
-            ),
-            title: const Text('Konto utworzone', textAlign: TextAlign.center),
-            content: const Text(
-              'Możesz teraz zalogować się do e-Patrol.',
-              textAlign: TextAlign.center,
-            ),
-            actionsAlignment: MainAxisAlignment.center,
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-
-                  Navigator.pushReplacementNamed(context, '/login');
-                },
-                child: const Text('OK'),
-              ),
-            ],
-          );
-        },
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => MainScreen(user: user)),
       );
-    } catch (error) {
+    } catch (e) {
       if (!mounted) return;
+
+      await AuthStorage.deleteToken();
 
       showDialog(
         context: context,
@@ -81,11 +61,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
           return AlertDialog(
             icon: const Icon(Icons.error_outline, size: 40, color: Colors.red),
             title: const Text(
-              'Nie udało się utworzyć konta',
+              'Nie udało się zalogować',
               textAlign: TextAlign.center,
             ),
             content: const Text(
-              'Konto z tym adresem e-mail może już istnieć.',
+              'Sprawdź adres e-mail i hasło, a następnie spróbuj ponownie.',
               textAlign: TextAlign.center,
             ),
             actionsAlignment: MainAxisAlignment.center,
@@ -111,10 +91,8 @@ class _RegisterScreenState extends State<RegisterScreen> {
 
   @override
   void dispose() {
-    nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
-    repeatPasswordController.dispose();
     super.dispose();
   }
 
@@ -142,10 +120,14 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       ),
                     ),
 
+                    const Center(
+                      child: AppLogo(width: 160, color: AppTheme.darkBlue),
+                    ),
+
                     const SizedBox(height: 20),
 
                     const Text(
-                      'Utwórz konto',
+                      'Witamy ponownie!',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 28,
@@ -157,7 +139,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 8),
 
                     Text(
-                      'Dołącz do e-Patrol i pomóż nam tworzyć lepsze miasto.',
+                      'Zaloguj się, aby zarządzać swoimi zgłoszeniami.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 15,
@@ -166,27 +148,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     ),
 
                     const SizedBox(height: 28),
-
-                    TextFormField(
-                      controller: nameController,
-                      textInputAction: TextInputAction.next,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      decoration: const InputDecoration(
-                        labelText: 'Imię i nazwisko',
-                        prefixIcon: Icon(Icons.person_outline),
-                      ),
-                      validator: (value) {
-                        if (value == null ||
-                            value.trim().isEmpty ||
-                            value.trim().split(' ').length < 2) {
-                          return 'Podaj imię i nazwisko';
-                        }
-
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 14),
 
                     TextFormField(
                       controller: emailController,
@@ -216,12 +177,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 16),
 
                     TextFormField(
                       controller: passwordController,
                       obscureText: hidePassword,
-                      textInputAction: TextInputAction.next,
+                      textInputAction: TextInputAction.done,
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: InputDecoration(
                         labelText: 'Hasło',
@@ -244,61 +205,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
                           return 'Podaj hasło';
                         }
 
-                        if (value.length < 8) {
-                          return 'Hasło musi mieć co najmniej 8 znaków';
-                        }
-
-                        return null;
-                      },
-                    ),
-
-                    const SizedBox(height: 14),
-
-                    TextFormField(
-                      controller: repeatPasswordController,
-                      obscureText: hidePassword,
-                      textInputAction: TextInputAction.done,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                      decoration: const InputDecoration(
-                        labelText: 'Powtórz hasło',
-                        prefixIcon: Icon(Icons.lock_outline),
-                      ),
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Powtórz hasło';
-                        }
-
-                        if (value != passwordController.text) {
-                          return 'Hasła nie są takie same';
-                        }
-
                         return null;
                       },
                     ),
 
                     const SizedBox(height: 10),
 
-                    CheckboxListTile(
-                      contentPadding: EdgeInsets.zero,
-                      controlAffinity: ListTileControlAffinity.leading,
-                      value: acceptTerms,
-                      onChanged: (value) {
-                        setState(() {
-                          acceptTerms = value ?? false;
-                        });
-                      },
-                      title: const Text(
-                        'Akceptuję regulamin i politykę prywatności',
-                        style: TextStyle(fontSize: 14, height: 1.3),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () {},
+                        child: const Text('Nie pamiętasz hasła?'),
                       ),
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 10),
 
                     SizedBox(
                       height: 54,
                       child: FilledButton(
-                        onPressed: acceptTerms && !isLoading ? register : null,
+                        onPressed: isLoading ? null : login,
                         child: isLoading
                             ? const SizedBox(
                                 width: 22,
@@ -309,7 +235,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
                                 ),
                               )
                             : const Text(
-                                'Zarejestruj się',
+                                'Zaloguj się',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -321,19 +247,36 @@ class _RegisterScreenState extends State<RegisterScreen> {
                     const SizedBox(height: 20),
 
                     Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('Masz już konto?'),
-                        TextButton(
-                          onPressed: () {
-                            Navigator.pushReplacementNamed(context, '/login');
-                          },
-                          child: const Text('Zaloguj się'),
+                        const Expanded(child: Divider()),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 14),
+                          child: Text(
+                            'lub',
+                            style: TextStyle(color: Colors.grey.shade600),
+                          ),
                         ),
+                        const Expanded(child: Divider()),
                       ],
                     ),
 
-                    const SizedBox(height: 12),
+                    const SizedBox(height: 20),
+
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text('Nie masz konta?'),
+                        TextButton(
+                          onPressed: () {
+                            Navigator.pushReplacementNamed(
+                              context,
+                              '/register',
+                            );
+                          },
+                          child: const Text('Utwórz konto'),
+                        ),
+                      ],
+                    ),
                   ],
                 ),
               ),

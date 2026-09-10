@@ -1,30 +1,33 @@
 import 'package:flutter/material.dart';
 
-import '../services/api_service.dart';
-import '../theme/app_theme.dart';
-import '../widgets/app_logo.dart';
-import '../services/auth_storage.dart';
+import '../../theme/app_theme.dart';
+import '../../services/api_service.dart';
 
-import 'home_screen.dart';
-
-class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+class RegisterScreen extends StatefulWidget {
+  const RegisterScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  State<RegisterScreen> createState() => _RegisterScreenState();
 }
 
-class _LoginScreenState extends State<LoginScreen> {
+class _RegisterScreenState extends State<RegisterScreen> {
   final formKey = GlobalKey<FormState>();
 
+  final nameController = TextEditingController();
   final emailController = TextEditingController();
   final passwordController = TextEditingController();
+  final repeatPasswordController = TextEditingController();
 
   bool hidePassword = true;
+  bool acceptTerms = false;
   bool isLoading = false;
 
-  Future<void> login() async {
+  Future<void> register() async {
     if (!formKey.currentState!.validate()) {
+      return;
+    }
+
+    if (!acceptTerms) {
       return;
     }
 
@@ -33,27 +36,44 @@ class _LoginScreenState extends State<LoginScreen> {
     });
 
     try {
-      final token = await ApiService.login(
+      await ApiService.register(
+        full_name: nameController.text.trim(),
         email: emailController.text.trim(),
         password: passwordController.text,
       );
 
-      await AuthStorage.saveToken(token);
-
-      final user = await ApiService.getMe(token: token);
-
-      debugPrint('Logged in as: ${user['full_name']}');
-
       if (!mounted) return;
 
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (context) => HomeScreen(user: user)),
+      showDialog(
+        context: context,
+        builder: (context) {
+          return AlertDialog(
+            icon: const Icon(
+              Icons.check_circle_outline,
+              size: 40,
+              color: Colors.green,
+            ),
+            title: const Text('Konto utworzone', textAlign: TextAlign.center),
+            content: const Text(
+              'Możesz teraz zalogować się do e-Patrol.',
+              textAlign: TextAlign.center,
+            ),
+            actionsAlignment: MainAxisAlignment.center,
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context);
+
+                  Navigator.pushReplacementNamed(context, '/login');
+                },
+                child: const Text('OK'),
+              ),
+            ],
+          );
+        },
       );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
-
-      await AuthStorage.deleteToken();
 
       showDialog(
         context: context,
@@ -61,11 +81,11 @@ class _LoginScreenState extends State<LoginScreen> {
           return AlertDialog(
             icon: const Icon(Icons.error_outline, size: 40, color: Colors.red),
             title: const Text(
-              'Nie udało się zalogować',
+              'Nie udało się utworzyć konta',
               textAlign: TextAlign.center,
             ),
             content: const Text(
-              'Sprawdź adres e-mail i hasło, a następnie spróbuj ponownie.',
+              'Konto z tym adresem e-mail może już istnieć.',
               textAlign: TextAlign.center,
             ),
             actionsAlignment: MainAxisAlignment.center,
@@ -91,8 +111,10 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   void dispose() {
+    nameController.dispose();
     emailController.dispose();
     passwordController.dispose();
+    repeatPasswordController.dispose();
     super.dispose();
   }
 
@@ -120,14 +142,10 @@ class _LoginScreenState extends State<LoginScreen> {
                       ),
                     ),
 
-                    const Center(
-                      child: AppLogo(width: 160, color: AppTheme.darkBlue),
-                    ),
-
                     const SizedBox(height: 20),
 
                     const Text(
-                      'Witamy ponownie!',
+                      'Utwórz konto',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 28,
@@ -139,7 +157,7 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 8),
 
                     Text(
-                      'Zaloguj się, aby zarządzać swoimi zgłoszeniami.',
+                      'Dołącz do e-Patrol i pomóż nam tworzyć lepsze miasto.',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         fontSize: 15,
@@ -148,6 +166,27 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
 
                     const SizedBox(height: 28),
+
+                    TextFormField(
+                      controller: nameController,
+                      textInputAction: TextInputAction.next,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      decoration: const InputDecoration(
+                        labelText: 'Imię i nazwisko',
+                        prefixIcon: Icon(Icons.person_outline),
+                      ),
+                      validator: (value) {
+                        if (value == null ||
+                            value.trim().isEmpty ||
+                            value.trim().split(' ').length < 2) {
+                          return 'Podaj imię i nazwisko';
+                        }
+
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
 
                     TextFormField(
                       controller: emailController,
@@ -177,12 +216,12 @@ class _LoginScreenState extends State<LoginScreen> {
                       },
                     ),
 
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 14),
 
                     TextFormField(
                       controller: passwordController,
                       obscureText: hidePassword,
-                      textInputAction: TextInputAction.done,
+                      textInputAction: TextInputAction.next,
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                       decoration: InputDecoration(
                         labelText: 'Hasło',
@@ -205,26 +244,61 @@ class _LoginScreenState extends State<LoginScreen> {
                           return 'Podaj hasło';
                         }
 
+                        if (value.length < 8) {
+                          return 'Hasło musi mieć co najmniej 8 znaków';
+                        }
+
+                        return null;
+                      },
+                    ),
+
+                    const SizedBox(height: 14),
+
+                    TextFormField(
+                      controller: repeatPasswordController,
+                      obscureText: hidePassword,
+                      textInputAction: TextInputAction.done,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                      decoration: const InputDecoration(
+                        labelText: 'Powtórz hasło',
+                        prefixIcon: Icon(Icons.lock_outline),
+                      ),
+                      validator: (value) {
+                        if (value == null || value.isEmpty) {
+                          return 'Powtórz hasło';
+                        }
+
+                        if (value != passwordController.text) {
+                          return 'Hasła nie są takie same';
+                        }
+
                         return null;
                       },
                     ),
 
                     const SizedBox(height: 10),
 
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () {},
-                        child: const Text('Nie pamiętasz hasła?'),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      value: acceptTerms,
+                      onChanged: (value) {
+                        setState(() {
+                          acceptTerms = value ?? false;
+                        });
+                      },
+                      title: const Text(
+                        'Akceptuję regulamin i politykę prywatności',
+                        style: TextStyle(fontSize: 14, height: 1.3),
                       ),
                     ),
 
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 12),
 
                     SizedBox(
                       height: 54,
                       child: FilledButton(
-                        onPressed: isLoading ? null : login,
+                        onPressed: acceptTerms && !isLoading ? register : null,
                         child: isLoading
                             ? const SizedBox(
                                 width: 22,
@@ -235,7 +309,7 @@ class _LoginScreenState extends State<LoginScreen> {
                                 ),
                               )
                             : const Text(
-                                'Zaloguj się',
+                                'Zarejestruj się',
                                 style: TextStyle(
                                   fontSize: 16,
                                   fontWeight: FontWeight.w700,
@@ -247,36 +321,19 @@ class _LoginScreenState extends State<LoginScreen> {
                     const SizedBox(height: 20),
 
                     Row(
-                      children: [
-                        const Expanded(child: Divider()),
-                        Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 14),
-                          child: Text(
-                            'lub',
-                            style: TextStyle(color: Colors.grey.shade600),
-                          ),
-                        ),
-                        const Expanded(child: Divider()),
-                      ],
-                    ),
-
-                    const SizedBox(height: 20),
-
-                    Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Text('Nie masz konta?'),
+                        const Text('Masz już konto?'),
                         TextButton(
                           onPressed: () {
-                            Navigator.pushReplacementNamed(
-                              context,
-                              '/register',
-                            );
+                            Navigator.pushReplacementNamed(context, '/login');
                           },
-                          child: const Text('Utwórz konto'),
+                          child: const Text('Zaloguj się'),
                         ),
                       ],
                     ),
+
+                    const SizedBox(height: 12),
                   ],
                 ),
               ),
