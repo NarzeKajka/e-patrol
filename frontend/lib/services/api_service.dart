@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:http/http.dart' as http;
 import 'package:image_picker/image_picker.dart';
@@ -165,6 +166,50 @@ class ApiService {
     throw Exception(data['detail'] ?? 'Nie udało się przesłać zdjęcia');
   }
 
+  static Future<AnalysisResult> predictAnalysis({
+    required String token,
+    required XFile image,
+  }) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/analysis/predict'),
+    );
+
+    request.headers['Authorization'] = 'Bearer $token';
+
+    final extension = image.name.split('.').last.toLowerCase();
+
+    final MediaType contentType;
+
+    switch (extension) {
+      case 'png':
+        contentType = MediaType('image', 'png');
+        break;
+      default:
+        contentType = MediaType('image', 'jpeg');
+    }
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        image.path,
+        filename: image.name,
+        contentType: contentType,
+      ),
+    );
+
+    final streamedResponse = await request.send();
+    final response = await http.Response.fromStream(streamedResponse);
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return AnalysisResult.fromJson(data as Map<String, dynamic>);
+    }
+
+    throw Exception(data['detail'] ?? 'Nie udało się przeanalizować zdjęcia');
+  }
+
   static Future<Map<String, dynamic>> createAnalysis({
     required String token,
     required int imageId,
@@ -204,5 +249,40 @@ class ApiService {
     }
 
     throw Exception(data['detail'] ?? 'Nie udało się pobrać zgłoszenia');
+  }
+
+  static Future<List<dynamic>> getReportImages({
+    required String token,
+    required int reportId,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/reports/$reportId/images'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    final data = jsonDecode(response.body);
+
+    if (response.statusCode == 200) {
+      return data as List<dynamic>;
+    }
+
+    throw Exception(data['detail'] ?? 'Nie udało się pobrać zdjęć zgłoszenia');
+  }
+
+  static Future<Uint8List> getReportImageBytes({
+    required String token,
+    required int reportId,
+    required int imageId,
+  }) async {
+    final response = await http.get(
+      Uri.parse('$baseUrl/reports/$reportId/images/$imageId/file'),
+      headers: {'Authorization': 'Bearer $token'},
+    );
+
+    if (response.statusCode == 200) {
+      return response.bodyBytes;
+    }
+
+    throw Exception('Nie udało się pobrać zdjęcia zgłoszenia');
   }
 }

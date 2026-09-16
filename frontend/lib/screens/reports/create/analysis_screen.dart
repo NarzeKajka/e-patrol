@@ -4,8 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../models/analysis_result.dart';
+import '../../../services/api_service.dart';
+import '../../../services/auth_storage.dart';
 import '../../../theme/app_theme.dart';
 import '../../../utils/report_category.dart';
+import '../../../widgets/detection_boxes.dart';
 import '../../../widgets/report_bottom_bar.dart';
 import '../../../widgets/report_progress.dart';
 import 'details_screen.dart';
@@ -24,6 +27,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
   bool categoryConfirmed = true;
   String? selectedCategory;
+  String? errorMessage;
 
   @override
   void initState() {
@@ -32,33 +36,37 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
   }
 
   Future<void> _runAnalysis() async {
-    // TODO:
-    // Później tutaj wywołamy prawdziwy endpoint AI.
-    await Future.delayed(const Duration(seconds: 2));
-
-    if (!mounted) return;
-
-    // Tymczasowy wynik do testowania całego przepływu.
-    const mockAnalysis = AnalysisResult(
-      modelName: 'ssd_mobilenet_v2',
-      modelVersion: 'mock',
-      inferenceTimeMs: 42.0,
-      detections: [
-        DetectionResult(
-          className: 'road_damage',
-          confidence: 0.87,
-          x1: 0.1,
-          y1: 0.2,
-          x2: 0.8,
-          y2: 0.9,
-        ),
-      ],
-    );
-
     setState(() {
-      analysis = mockAnalysis;
-      selectedCategory = mockAnalysis.detectedCategory;
+      errorMessage = null;
     });
+
+    try {
+      final token = await AuthStorage.getToken();
+
+      if (token == null) {
+        throw Exception('Brak aktywnej sesji. Zaloguj się ponownie.');
+      }
+
+      final result = await ApiService.predictAnalysis(
+        token: token,
+        image: widget.image,
+      );
+
+      if (!mounted) return;
+
+      setState(() {
+        analysis = result;
+        selectedCategory = result.detectedCategory;
+        // Gdy model niczego nie rozpoznał, od razu pokazujemy listę wyboru.
+        categoryConfirmed = result.hasDetection;
+      });
+    } catch (error) {
+      if (!mounted) return;
+
+      setState(() {
+        errorMessage = error.toString().replaceFirst('Exception: ', '');
+      });
+    }
   }
 
   void _changeConfirmation(bool value) {
@@ -112,7 +120,12 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
 
                     Expanded(
                       child: SingleChildScrollView(
-                        child: currentAnalysis == null
+                        child: errorMessage != null
+                            ? _AnalysisError(
+                                message: errorMessage!,
+                                onRetry: _runAnalysis,
+                              )
+                            : currentAnalysis == null
                             ? _AnalysisLoading(image: widget.image)
                             : _AnalysisResultView(
                                 image: widget.image,
@@ -133,7 +146,7 @@ class _AnalysisScreenState extends State<AnalysisScreen> {
               ),
             ),
 
-            if (currentAnalysis != null)
+            if (currentAnalysis != null || errorMessage != null)
               ReportBottomBar(
                 leftLabel: 'Wstecz',
                 rightLabel: 'Dalej',
@@ -282,17 +295,46 @@ class _AnalysisResultView extends StatelessWidget {
     final detectedCategory = analysis.detectedCategory;
     final confidence = analysis.confidence;
 
+    // Ramki rysujemy tylko wtedy, gdy backend podał rozmiar zdjęcia.
+    final drawnDetections = analysis.canDrawBoxes
+        ? analysis.drawnDetections
+        : const <DetectionResult>[];
+
+    final boxLabel = detectedCategory == null || confidence == null
+        ? null
+        : '${ReportCategory.label(detectedCategory)} '
+              '${(confidence * 100).round()}%';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         ClipRRect(
           borderRadius: BorderRadius.circular(18),
           child: AspectRatio(
-            aspectRatio: 16 / 9,
-            child: Image.file(
-              File(image.path),
+            aspectRatio: 4 / 3,
+            child: Container(
               width: double.infinity,
-              fit: BoxFit.cover,
+              color: const Color(0xFFEEF2F7),
+              // BoxFit.contain, a nie cover: uzytkownik ma potwierdzic lub
+              // poprawic kategorie, wiec musi widziec CALE zdjecie - to samo,
+              // ktore dostal model. Przyciete zdjecie moze ukryc obiekt,
+              // na podstawie ktorego model zaproponowal kategorie.
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  Image.file(File(image.path), fit: BoxFit.contain),
+
+                  // Warstwa z ramkami ma dokladnie ten sam rozmiar co
+                  // kontener, wiec sama przelicza polozenie zdjecia w srodku.
+                  if (drawnDetections.isNotEmpty)
+                    DetectionBoxes(
+                      detections: drawnDetections,
+                      imageWidth: analysis.imageWidth!,
+                      imageHeight: analysis.imageHeight!,
+                      mainLabel: boxLabel,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -447,6 +489,77 @@ class _AnalysisResultView extends StatelessWidget {
             onChanged: onCategoryChanged,
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _AnalysisError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+
+  const _AnalysisError({required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        const SizedBox(height: 20),
+
+        Container(
+          width: 76,
+          height: 76,
+          decoration: const BoxDecoration(
+            color: Color(0xFFFFE8E8),
+            shape: BoxShape.circle,
+          ),
+          alignment: Alignment.center,
+          child: const Icon(
+            Icons.cloud_off_rounded,
+            size: 34,
+            color: Color(0xFFD14343),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        const Text(
+          'Nie udało się przeanalizować zdjęcia',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: AppTheme.darkBlue,
+          ),
+        ),
+
+        const SizedBox(height: 10),
+
+        Text(
+          message,
+          textAlign: TextAlign.center,
+          style: const TextStyle(
+            fontSize: 14,
+            height: 1.5,
+            color: Color(0xFF68788D),
+          ),
+        ),
+
+        const SizedBox(height: 24),
+
+        OutlinedButton.icon(
+          onPressed: onRetry,
+          icon: const Icon(Icons.refresh_rounded),
+          label: const Text('Spróbuj ponownie'),
+        ),
+
+        const SizedBox(height: 14),
+
+        const Text(
+          'Możesz też wrócić i wybrać zdjęcie ponownie.',
+          textAlign: TextAlign.center,
+          style: TextStyle(fontSize: 13, color: Color(0xFF9AA6B6)),
+        ),
       ],
     );
   }
