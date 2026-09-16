@@ -55,7 +55,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
         throw Exception('Brak aktywnej sesji. Zaloguj się ponownie.');
       }
 
-      // 1. Tworzymy zgłoszenie.
       final report = await ApiService.createReport(
         token: token,
         category: widget.category,
@@ -66,7 +65,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
       final reportId = report['id'] as int;
 
-      // 2. Dodajemy zdjęcie do utworzonego zgłoszenia.
       final uploadedImage = await ApiService.uploadReportImage(
         token: token,
         reportId: reportId,
@@ -75,7 +73,6 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
       final imageId = uploadedImage['id'] as int;
 
-      // 3. Zapisujemy wynik analizy AI dla zdjęcia.
       await ApiService.createAnalysis(
         token: token,
         imageId: imageId,
@@ -193,11 +190,14 @@ class _SummaryScreenState extends State<SummaryScreen> {
 
                     ClipRRect(
                       borderRadius: BorderRadius.circular(14),
-                      child: Image.file(
-                        File(widget.image.path),
+                      child: Container(
                         width: double.infinity,
                         height: 190,
-                        fit: BoxFit.cover,
+                        color: const Color(0xFFEEF2F7),
+                        child: Image.file(
+                          File(widget.image.path),
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
 

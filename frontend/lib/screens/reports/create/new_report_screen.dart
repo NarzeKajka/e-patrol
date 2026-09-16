@@ -235,10 +235,10 @@ class _SelectedImageBox extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           child: AspectRatio(
             aspectRatio: 4 / 3,
-            child: Image.file(
-              File(image.path),
+            child: Container(
               width: double.infinity,
-              fit: BoxFit.cover,
+              color: const Color(0xFFEEF2F7),
+              child: Image.file(File(image.path), fit: BoxFit.contain),
             ),
           ),
         ),

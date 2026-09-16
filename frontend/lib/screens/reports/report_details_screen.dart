@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 
 import '../../services/api_service.dart';
@@ -19,6 +21,7 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
   bool isLoading = true;
   Map<String, dynamic>? report;
   String? address;
+  Uint8List? imageBytes;
 
   @override
   void initState() {
@@ -38,6 +41,28 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
         token: token,
         reportId: widget.reportId,
       );
+
+      Uint8List? loadedImageBytes;
+
+      try {
+        final images = await ApiService.getReportImages(
+          token: token,
+          reportId: widget.reportId,
+        );
+
+        if (images.isNotEmpty) {
+          final firstImage = images.first as Map<String, dynamic>;
+          final imageId = firstImage['id'] as int;
+
+          loadedImageBytes = await ApiService.getReportImageBytes(
+            token: token,
+            reportId: widget.reportId,
+            imageId: imageId,
+          );
+        }
+      } catch (_) {
+        loadedImageBytes = null;
+      }
 
       final latitude = double.tryParse(
         loadedReport['latitude']?.toString() ?? '',
@@ -62,6 +87,7 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
       setState(() {
         report = loadedReport;
         address = loadedAddress;
+        imageBytes = loadedImageBytes;
         isLoading = false;
       });
     } catch (e) {
@@ -240,6 +266,20 @@ class _ReportDetailsScreenState extends State<ReportDetailsScreen> {
               ],
             ),
           ),
+
+          if (imageBytes != null) ...[
+            const SizedBox(height: 10),
+
+            ClipRRect(
+              borderRadius: BorderRadius.circular(18),
+              child: Container(
+                width: double.infinity,
+                height: 240,
+                color: const Color(0xFFEEF2F7),
+                child: Image.memory(imageBytes!, fit: BoxFit.contain),
+              ),
+            ),
+          ],
 
           const SizedBox(height: 22),
 
