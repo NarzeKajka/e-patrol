@@ -30,3 +30,6 @@ uploads/
 
 # ML datasets
 data/
+
+# Wagi modeli
+models/
