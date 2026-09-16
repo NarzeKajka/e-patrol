@@ -1,6 +1,7 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, status, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -157,3 +158,90 @@ def upload_report_image(
     db.refresh(report_image)
 
     return report_image
+
+@router.get(
+    "/{report_id}/images",
+    response_model=list[ReportImageResponse],
+)
+def get_report_images(
+    report_id: int,
+    current_user: Annotated[
+        User,
+        Depends(get_current_user),
+    ],
+    db: Annotated[
+        Session,
+        Depends(get_db),
+    ],
+):
+    report = db.scalar(
+        select(Report).where(
+            Report.id == report_id,
+            Report.user_id == current_user.id,
+        )
+    )
+
+    if report is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report not found",
+        )
+
+    statement = (
+        select(ReportImage)
+        .where(ReportImage.report_id == report_id)
+        .order_by(ReportImage.created_at.asc())
+    )
+
+    images = db.scalars(statement).all()
+
+    return images
+
+@router.get(
+    "/{report_id}/images/{image_id}/file",
+)
+def get_report_image_file(
+    report_id: int,
+    image_id: int,
+    current_user: Annotated[
+        User,
+        Depends(get_current_user),
+    ],
+    db: Annotated[
+        Session,
+        Depends(get_db),
+    ],
+):
+    statement = (
+        select(ReportImage)
+        .join(Report)
+        .where(
+            ReportImage.id == image_id,
+            ReportImage.report_id == report_id,
+            Report.user_id == current_user.id,
+        )
+    )
+
+    report_image = db.scalar(statement)
+
+    if report_image is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Report image not found",
+        )
+
+    image_path = report_image_storage.get_path(
+        report_image.storage_key,
+    )
+
+    if not image_path.exists():
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Image file not found",
+        )
+
+    return FileResponse(
+        path=image_path,
+        media_type=report_image.content_type,
+        filename=report_image.original_filename,
+    )
