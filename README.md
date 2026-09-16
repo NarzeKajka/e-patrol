@@ -1,33 +1,23 @@
 # e-Patrol
 
-**e-Patrol** is a web application developed as part of a master's thesis focused on the use of object detection algorithms in systems for reporting irregularities in urban spaces.
+**e-Patrol** is an application developed as part of a master's thesis focused on the use of object detection algorithms in systems for reporting irregularities in urban spaces.
 
-The system is designed to allow users to report urban issues by submitting a photograph, location and description. Image analysis methods are used to support the reporting process by automatically detecting selected types of objects and infrastructure damage.
+The system allows users to report urban issues by submitting a photograph, location and description. An object detection model analyses the submitted photograph and suggests a report category, which the user confirms or corrects before the report is saved.
 
 ## Master's Thesis
 
 **Title:**  
-_Zastosowanie algorytmów detekcji obrazu w systemach zgłaszania nieprawidłowości w przestrzeni miejskiej z wykorzystaniem aplikacji webowej_
+_Zastosowanie algorytmów detekcji obrazu w systemach zgłaszania nieprawidłowości w przestrzeni miejskiej z wykorzystaniem aplikacji mobilnej i miejskiego monitoringu_
 
-**Title (English):**
+**Title (English):**  
 _Application of image detection algorithms in systems for reporting irregularities in urban space using a mobile application and city monitoring_
 
-The project combines two main areas:
+The project combines two areas:
 
 - development of the e-Patrol reporting system,
 - experimental comparison of selected object detection models.
 
-The planned experimental evaluation compares:
-
-- YOLOv5,
-- YOLOv8,
-- MobileNet SSD.
-
-The models are evaluated using metrics such as detection accuracy, precision, recall and inference performance.
-
 ## Main Idea
-
-The basic reporting workflow is:
 
 ```text
 User
@@ -36,63 +26,83 @@ Photo + location + description
   ↓
 e-Patrol backend
   ↓
-Image analysis
+Object detection (YOLOv8s)
   ↓
-Detected objects / urban issues
+Suggested category + bounding boxes
   ↓
-AI suggestion
+User confirmation or correction
   ↓
-User confirmation
-  ↓
-Report
+Report saved with both values
 ```
 
-The AI module automatically analyses submitted images to identify relevant urban issues and assist in validating reports. Detection results may be used to pre-fill the report category, flag potentially inconsistent submissions, and reduce low-quality or irrelevant reports. The user can confirm or correct the AI-generated result before final submission.
+The model never decides on its own. The suggested category and the category finally chosen by the user are stored separately, so the agreement between them can be measured on real submissions.
 
-## Planned Features
+## Features
 
-### User
+- Registration and login with JWT, session restored on startup
+- Creating a report: photograph, location, description
+- Image validation and storage on the server
+- Automatic category suggestion from the detection model, confirmed or corrected by the user
+- Detections drawn over the analysed photograph
+- Report history with details and photograph
+- Access control — a user sees only their own reports
 
-- [x] User registration
-- [x] User authentication using JWT
-- [x] Creating reports
-- [x] Geographic coordinates for reports
-- [x] Uploading report images
-- [x] Image validation
-- [x] Viewing user's reports
-- [x] Report ownership and access control
-- [ ] AI-assisted image analysis
-- [ ] AI suggestion confirmation
-- [ ] Report status tracking
-- [ ] Flutter user interface
+Report status is stored and displayed, but cannot be changed yet.
 
-### AI
+## Dataset
 
-- [x] Database structure for storing analyses and detections
-- [x] API support for storing detection results
-- [ ] Dataset preparation
-- [ ] YOLOv8 training and evaluation
-- [ ] YOLOv5 training and evaluation
-- [ ] MobileNet SSD training and evaluation
-- [ ] Model comparison
-- [ ] Integration of the selected model with the application
+The application recognises three categories of urban issues:
 
-## Object Detection
+| Class         | Source dataset                              |
+| ------------- | ------------------------------------------- |
+| `road_damage` | RDD2022 — Czech Republic and Norway subsets |
+| `waste`       | Illegal Dumping dataset                     |
+| `graffiti`    | STORM dataset                               |
 
-The research part of the project investigates the suitability of different object detection architectures for analysing images of urban environments.
+Only European subsets of RDD2022 were used, because of comparable road construction standards and signage. The four original damage classes (`D00`, `D10`, `D20`, `D40`) were merged into a single `road_damage` class, and the seven waste classes into a single `waste` class — the application asks the user to choose a report category, not a damage subtype.
 
-The main experimental dataset is planned to be **RDD2022 (Road Damage Dataset 2022)**, containing annotated examples of road damage.
+Preparation pipeline (`scripts/dataset/`):
 
-The analysed road damage classes include:
+1. selection of candidate images from each source,
+2. near-duplicate detection using perceptual hashing (pHash),
+3. conversion of annotations to YOLO format,
+4. group-aware split into train / validation / test (70 / 15 / 15, seed 42), so that near-duplicate images never end up in different subsets,
+5. visual audit of samples from each class.
 
-- longitudinal cracks,
-- transverse cracks,
-- alligator cracks,
-- potholes.
+The result is a dataset of roughly 3000 annotated images. Source datasets and the generated dataset are not stored in this repository.
 
-All compared models will be evaluated on a common dataset split to provide comparable experimental conditions.
+## Experimental Comparison
 
-Additional datasets and urban issue categories may be investigated as extensions of the system.
+Three architectures were trained and compared under identical conditions — 100 epochs, starting from COCO-pretrained weights, on the same data split:
+
+- YOLOv5s,
+- YOLOv8s,
+- SSDLite320 with a MobileNetV3 backbone.
+
+All three are PyTorch implementations, so the measured inference times compare architectures rather than frameworks.
+
+Evaluation criteria:
+
+- mAP@0.5 and mAP@0.5:0.95, precision and recall per class,
+- inference time per image and model file size,
+- **category accuracy** — how often the model suggested the category the user would choose. This is the application-level metric and it is computed with the same rule the backend uses (the most confident detection wins).
+
+Additional experiments covered the influence of inference resolution, the confidence threshold, and a controlled retraining run at a higher input resolution.
+
+Two findings shaped the implementation:
+
+- **The confidence threshold is set to 0.05**, not the usual 0.25. Cross-class confusion turned out to be negligible; almost every error was "nothing detected". Lowering the threshold raises category suggestion accuracy from about 88% to about 96%, at the cost of precision that the user never sees, because the application shows one category rather than a list of boxes.
+- **The optimal input resolution depends on the size of the source images.** The Czech subset (600×600) and the Norwegian subset (3643×2041) react to resolution changes in opposite directions, so a single global setting cannot serve a heterogeneous dataset.
+
+**YOLOv8s at 640 px** is the model integrated with the application. Full results, tables and charts are part of the thesis.
+
+## Known Limitations
+
+- Each class comes from a different source dataset, and each source annotates only its own class. A photograph of a road with a bag of rubbish on the shoulder has that bag as background, not as an object. The model may therefore learn to recognise which dataset an image comes from rather than what it shows. The test set shares this weakness, so the metrics alone will not reveal it.
+- The dataset contains no images without any problem, so the models were never trained to answer "there is nothing here".
+- Verifying the models under real conditions would require a few hundred photographs taken with a phone, annotated with all three classes at once, and used exclusively as an additional test set.
+- The backend stores bounding boxes in pixel coordinates, but not the dimensions of the analysed image, so boxes can be drawn during analysis but not re-drawn for an already saved report.
+- The Flutter client points at `http://127.0.0.1:8000`, which works on a simulator running on the same machine as the backend.
 
 ## Architecture
 
@@ -110,7 +120,7 @@ Additional datasets and urban issue categories may be investigated as extensions
 │ Authentication      │
 │ Reports             │
 │ Image handling      │
-│ AI integration      │
+│ Object detection    │
 └──────────┬──────────┘
            │
            ▼
@@ -125,11 +135,9 @@ Additional datasets and urban issue categories may be investigated as extensions
 └─────────────────────┘
 ```
 
-The backend follows a modular structure separating API endpoints, database models, schemas, services and AI-related functionality.
+The model runs on the server, not on the device. The weights are loaded once, on the first request, and stay in memory.
 
 ## Data Model
-
-The main image-analysis relationship is:
 
 ```text
 User
@@ -150,7 +158,7 @@ User
                           └── bounding box
 ```
 
-This structure allows multiple AI models to analyse the same image and makes it possible to store and compare their results.
+This structure allows multiple models to analyse the same image and makes it possible to store and compare their results.
 
 ## Technology Stack
 
@@ -179,40 +187,10 @@ This structure allows multiple AI models to analyse the same image and makes it 
 
 ### Computer Vision
 
-Planned:
-
-- YOLOv5
-- YOLOv8
-- MobileNet SSD
-- OpenCV
-
-## Project Structure
-
-```text
-e-patrol/
-├── backend/
-│   ├── app/
-│   │   ├── api/
-│   │   ├── core/
-│   │   ├── database/
-│   │   ├── models/
-│   │   ├── schemas/
-│   │   ├── services/
-│   │   └── ai/
-│   ├── alembic/
-│   └── tests/
-│
-├── frontend/
-│
-├── docs/
-│
-├── uploads/
-│
-├── docker-compose.yml
-└── README.md
-```
-
-Local uploads, environment variables, datasets and other generated data are not stored in the Git repository.
+- Ultralytics (YOLOv5, YOLOv8)
+- PyTorch and torchvision (MobileNet SSD)
+- Pillow
+- Training carried out in Google Colab
 
 ## Local Development
 
@@ -254,60 +232,67 @@ DATABASE_URL=postgresql+psycopg://epatrol:epatrol_dev@localhost:5432/epatrol
 JWT_SECRET_KEY=your-secret-key
 JWT_ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=30
+DETECTION_CONFIDENCE_THRESHOLD=0.05
 ```
 
-### 4. Apply database migrations
+### 4. Add the model weights
+
+The trained weights are not stored in the repository. Copy the `best.pt` file produced by training into:
+
+```text
+models/best.pt
+```
+
+A different location can be set with `DETECTION_MODEL_PATH` in `.env`. Without the weights file the whole application works, but `POST /analysis/predict` answers with `503`.
+
+### 5. Apply database migrations
 
 ```bash
 alembic upgrade head
 ```
 
-### 5. Run the backend
+### 6. Run the backend
 
 ```bash
 uvicorn app.main:app --reload
 ```
 
-The development API is available at:
+The development API is available at `http://127.0.0.1:8000`, and the interactive documentation at `http://127.0.0.1:8000/docs`.
 
-```text
-http://127.0.0.1:8000
-```
-
-Interactive API documentation:
-
-```text
-http://127.0.0.1:8000/docs
-```
-
-### 6. Run tests
-
-A separate PostgreSQL database named `epatrol_test` is used by the automated test suite.
+### 7. Run the application
 
 ```bash
+cd frontend
+flutter pub get
+flutter run
+```
+
+### 8. Run tests
+
+Backend — a separate PostgreSQL database named `epatrol_test` is used by the test suite:
+
+```bash
+cd backend
 pytest -v
 ```
 
-## Current Status
+Frontend:
 
-The backend foundation is operational, including authentication, report management, image upload and storage of AI analysis results.
-
-Current development is focused on preparing the computer vision experiment and training the first object detection model.
-
-The Flutter user interface and final AI integration are under development.
+```bash
+cd frontend
+flutter test
+```
 
 ## Future Development
 
-Potential extensions include:
-
+- administrative report management and status changes,
 - analysis of additional types of urban irregularities,
 - contextual detection of improper parking,
-- administrative report management,
 - object storage for production image handling,
 - anonymisation of faces and vehicle licence plates,
 - processing video streams from urban monitoring systems or municipal vehicles.
 
-Integration with real urban monitoring infrastructure is outside the current implementation scope and is considered a potential direction for further development.
+Integration with real urban monitoring infrastructure is outside the current implementation scope and is considered a direction for further development.
 
 ## License
 
